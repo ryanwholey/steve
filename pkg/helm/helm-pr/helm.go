@@ -17,8 +17,21 @@ import (
 )
 
 func New() (*HelmClient, error) {
+	settings := cli.New()
+
+	rc, err := repo.NewChartRepository(&repo.Entry{
+		Name:     os.Getenv("HELM_REPOSITORY_NAME"),
+		URL:      os.Getenv("HELM_REPOSITORY_URL"),
+		Username: os.Getenv(("HELM_REPOSITORY_USERNAME")),
+		Password: os.Getenv("HELM_REPOSITORY_PASSWORD"),
+	}, getter.All(settings))
+	if err != nil {
+		return nil, err
+	}
+
 	return &HelmClient{
-		settings: cli.New(),
+		settings:   settings,
+		repoClient: rc,
 	}, nil
 }
 
@@ -40,17 +53,10 @@ func (hc *HelmClient) Install(args []string) (*release.Release, error) {
 	install.ReleaseName = name
 	install.Namespace = hc.settings.Namespace()
 
-	rc, err := repo.NewChartRepository(&repo.Entry{
-		Name:     os.Getenv("HELM_REPOSITORY_NAME"),
-		URL:      os.Getenv("HELM_REPOSITORY_URL"),
-		Username: os.Getenv(("HELM_REPOSITORY_USERNAME")),
-		Password: os.Getenv("HELM_REPOSITORY_PASSWORD"),
-	}, getter.All(hc.settings))
-
 	if err != nil {
 		return nil, err
 	}
-	indexPath, err := rc.DownloadIndexFile()
+	indexPath, err := hc.repoClient.DownloadIndexFile()
 	if err != nil {
 		return nil, err
 	}
@@ -89,5 +95,6 @@ func (hc *HelmClient) Install(args []string) (*release.Release, error) {
 }
 
 type HelmClient struct {
-	settings *cli.EnvSettings
+	settings   *cli.EnvSettings
+	repoClient *repo.ChartRepository
 }
